@@ -25,9 +25,7 @@ NSString *const AudioRecorderEventFinished = @"recordingFinished";
   int _progressUpdateInterval;
   NSDate *_prevProgressUpdateTime;
   NSURL *_audioFileURL;
-  NSNumber *_audioQuality;
-  NSNumber *_audioChannels;
-  NSNumber *_audioSampleRate;
+  NSString *_path;
   AVAudioSession *_recordSession;
 }
 
@@ -81,55 +79,35 @@ RCT_EXPORT_MODULE();
   return basePath;
 }
 
-RCT_EXPORT_METHOD(prepareRecordingAtPath:(NSString *)path sampleRate:(float)sampleRate channels:(nonnull NSNumber *)channels quality:(NSString *)quality)
+RCT_EXPORT_METHOD(requestRecordPermission:(RCTResponseSenderBlock)callback)
 {
+  [[AVAudioSession sharedInstance] requestRecordPermission:^(BOOL granted) {
+    callback(@[[NSNull null], @(granted)]);
+  }];
+}
 
+RCT_EXPORT_METHOD(prepareRecordingAtPath:(NSString *)path)
+{
+  _path = path;
   _prevProgressUpdateTime = nil;
   [self stopProgressTimer];
 
   NSString *audioFilePath = [[self applicationDocumentsDirectory] stringByAppendingPathComponent:path];
 
-
   _audioFileURL = [NSURL fileURLWithPath:audioFilePath];
 
-  // Default options
-
-  _audioQuality = [NSNumber numberWithInt:AVAudioQualityHigh];
-  _audioChannels = [NSNumber numberWithInt:2];
-  _audioSampleRate = [NSNumber numberWithFloat:44100.0];
-
-    // Set audio quality from options
-    if (quality != nil) {
-      if ([quality  isEqual: @"Low"]) {
-        _audioQuality =[NSNumber numberWithInt:AVAudioQualityLow];
-      } else if ([quality  isEqual: @"Medium"]) {
-        _audioQuality =[NSNumber numberWithInt:AVAudioQualityMedium];
-      } else if ([quality  isEqual: @"High"]) {
-        _audioQuality =[NSNumber numberWithInt:AVAudioQualityHigh];
-      }
-    }
-
-    // Set channels from options
-    if (channels != nil) {
-      _audioChannels = channels;
-    }
-
-    // Set sample rate from options
-    _audioSampleRate = [NSNumber numberWithFloat:sampleRate];
-
-
-
   NSDictionary *recordSettings = [NSDictionary dictionaryWithObjectsAndKeys:
-          _audioQuality, AVEncoderAudioQualityKey,
+          [NSNumber numberWithInt:AVAudioQualityHigh], AVEncoderAudioQualityKey,
           [NSNumber numberWithInt:16], AVEncoderBitRateKey,
-          _audioChannels, AVNumberOfChannelsKey,
-          _audioSampleRate, AVSampleRateKey,
+          [NSNumber numberWithInt: 2], AVNumberOfChannelsKey,
+          [NSNumber numberWithFloat:44100.0], AVSampleRateKey,
           nil];
 
   NSError *error = nil;
 
   _recordSession = [AVAudioSession sharedInstance];
   [_recordSession setCategory:AVAudioSessionCategoryPlayAndRecord error:nil];
+
 
   _audioRecorder = [[AVAudioRecorder alloc]
                 initWithURL:_audioFileURL
@@ -156,12 +134,16 @@ RCT_EXPORT_METHOD(startRecording)
   }
 }
 
-RCT_EXPORT_METHOD(stopRecording)
+RCT_EXPORT_METHOD(stopRecording:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
 {
   if (_audioRecorder.recording) {
+    NSTimeInterval totalTimeRecorded = _audioRecorder.currentTime;
+    NSLog(@"currentTime %f", totalTimeRecorded);
     [_audioRecorder stop];
     [_recordSession setActive:NO error:nil];
     _prevProgressUpdateTime = nil;
+    resolve(@[@(totalTimeRecorded), _path]);
   }
 }
 
