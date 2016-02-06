@@ -11,8 +11,8 @@ var AudioPlayerManager = NativeModules.AudioPlayerManager;
 var AudioRecorderManager = NativeModules.AudioRecorderManager;
 
 var AudioPlayer = {
-  play: function(path) {
-    AudioPlayerManager.play(path);
+  play: function(path, fromTime) {
+    AudioPlayerManager.play(path, fromTime);
   },
   playWithUrl: function(url) {
     AudioPlayerManager.playWithUrl(url);
@@ -32,9 +32,6 @@ var AudioPlayer = {
   setCurrentTime: function(time) {
     AudioPlayerManager.setCurrentTime(time);
   },
-  skipToSeconds: function(position) {
-    AudioPlayerManager.skipToSeconds(position);
-  },
   setProgressSubscription: function() {
     this.progressSubscription = DeviceEventEmitter.addListener('playerProgress',
       (data) => {
@@ -47,7 +44,7 @@ var AudioPlayer = {
   setFinishedSubscription: function() {
     this.progressSubscription = DeviceEventEmitter.addListener('playerFinished',
       (data) => {
-        if (this.onFinished) {
+        if (this.onProgress) {
           this.onFinished(data);
         }
       }
@@ -58,35 +55,11 @@ var AudioPlayer = {
       callback(duration);
     })
   },
-  getCurrentTime: function(callback) {
-    AudioPlayerManager.getCurrentTime((error, currentTime) => {
-      callback(currentTime);
-    })
-  },
 };
 
 var AudioRecorder = {
-  prepareRecordingAtPath: function(path, options) {
-
-    var recordingOptions = null;
-
-    if (!options) {
-      recordingOptions = {
-        SampleRate: 44100.0,
-        Channels: 2,
-        AudioQuality: 'High'
-      };
-    } else {
-      recordingOptions = options;
-    }
-
-    AudioRecorderManager.prepareRecordingAtPath(
-      path,
-      recordingOptions.SampleRate,
-      recordingOptions.Channels,
-      recordingOptions.AudioQuality
-    );
-
+  prepareRecordingAtPath: function(path) {
+    AudioRecorderManager.prepareRecordingAtPath(path);
     this.progressSubscription = NativeAppEventEmitter.addListener('recordingProgress',
       (data) => {
         if (this.onProgress) {
@@ -103,6 +76,9 @@ var AudioRecorder = {
       }
     );
   },
+  requestRecordPermission: function() {
+    AudioRecorderManager.requestRecordPermission((err, granted) => alert(granted));
+  },
   startRecording: function() {
     AudioRecorderManager.startRecording();
   },
@@ -110,10 +86,11 @@ var AudioRecorder = {
     AudioRecorderManager.pauseRecording();
   },
   stopRecording: function() {
-    AudioRecorderManager.stopRecording();
     if (this.subscription) {
       this.subscription.remove();
     }
+    return AudioRecorderManager.stopRecording();
+
   },
   playRecording: function() {
     AudioRecorderManager.playRecording();
